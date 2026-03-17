@@ -1,12 +1,5 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-loadstring(game:HttpGet("https://raw.githubusercontent.com/NamelessOff/rbx/refs/heads/main/Player.lua"))
-loadstring(game:HttpGet("https://raw.githubusercontent.com/NamelessOff/rbx/refs/heads/main/Server.lua"))
-loadstring(game:HttpGet("https://raw.githubusercontent.com/NamelessOff/rbx/refs/heads/main/Visuals.lua"))
-loadstring(game:HttpGet("https://raw.githubusercontent.com/NamelessOff/rbx/refs/heads/main/Local.lua"))
-loadstring(game:HttpGet("https://raw.githubusercontent.com/NamelessOff/rbx/refs/heads/main/Combat.lua"))
-
-
 local Window = Rayfield:CreateWindow({
 	Name = "Ultimate Game Hub v5.0 MODULAR",
 	LoadingTitle = "Загрузка ядра...",
@@ -44,14 +37,15 @@ local Tabs = {
 
 -- ==========================================
 -- ЗАГРУЗКА МОДУЛЕЙ С GITHUB
--- (Замените ссылки на свои RAW-ссылки с GitHub)
 -- ==========================================
-local repoUrl = "https://raw.githubusercontent.com/ВАШ_ПРОФИЛЬ/ВАШ_РЕПОЗИТОРИЙ/main/"
+-- Ваша настоящая ссылка на репозиторий:
+local repoUrl = "https://raw.githubusercontent.com/NamelessOff/rbx/refs/heads/main/"
 
+-- Скачиваем код и сразу передаем в него нужную вкладку (Tabs) и контекст (SharedContext)
 loadstring(game:HttpGet(repoUrl .. "Local.lua"))()(Tabs.Local, SharedContext)
 loadstring(game:HttpGet(repoUrl .. "Combat.lua"))()(Tabs.Combat, SharedContext)
 loadstring(game:HttpGet(repoUrl .. "Visuals.lua"))()(Tabs.Visuals, SharedContext)
-loadstring(game:HttpGet(repoUrl .. "Players.lua"))()(Tabs.Players, SharedContext)
+loadstring(game:HttpGet(repoUrl .. "Player.lua"))()(Tabs.Players, SharedContext) -- Исправлено на Player.lua
 loadstring(game:HttpGet(repoUrl .. "Server.lua"))()(Tabs.Server, SharedContext)
 
 -- ==========================================
