@@ -1,5 +1,12 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
+loadstring(game:HttpGet("https://raw.githubusercontent.com/NamelessOff/rbx/refs/heads/main/Player.lua"))
+loadstring(game:HttpGet("https://raw.githubusercontent.com/NamelessOff/rbx/refs/heads/main/Server.lua"))
+loadstring(game:HttpGet("https://raw.githubusercontent.com/NamelessOff/rbx/refs/heads/main/Visuals.lua"))
+loadstring(game:HttpGet("https://raw.githubusercontent.com/NamelessOff/rbx/refs/heads/main/Local.lua"))
+loadstring(game:HttpGet("https://raw.githubusercontent.com/NamelessOff/rbx/refs/heads/main/Combat.lua"))
+
+
 local Window = Rayfield:CreateWindow({
 	Name = "Ultimate Game Hub v5.0 MODULAR",
 	LoadingTitle = "Загрузка ядра...",
