@@ -5,6 +5,9 @@ return function(Tab, Context)
 	local autoclickerEnabled, flingEnabled = false, false
 	local autoclickerDelay = 10 
 
+	-- ===================================
+	Tab:CreateSection("🎯 Помощь в стрельбе")
+	-- ===================================
 	local CamlockToggle = Tab:CreateToggle({
 		Name = "Aimbot / Camlock (Зажать ПКМ)",
 		CurrentValue = false,
@@ -19,11 +22,23 @@ return function(Tab, Context)
 		Callback = function() CamlockToggle:Set(not camlockEnabled) end,
 	})
 
+	-- ===================================
+	Tab:CreateSection("⚙️ Автоматизация")
+	-- ===================================
 	local AutoClickToggle = Tab:CreateToggle({
 		Name = "Auto-Clicker",
 		CurrentValue = false,
 		Flag = "AutoClick",
 		Callback = function(Value) autoclickerEnabled = Value end,
+	})
+	Tab:CreateSlider({
+		Name = "Задержка кликера",
+		Range = {1, 1000},
+		Increment = 10,
+		Suffix = " мс",
+		CurrentValue = 10,
+		Flag = "ClickDelay",
+		Callback = function(Value) autoclickerDelay = Value end,
 	})
 	Tab:CreateKeybind({
 		Name = "⌨️ Бинд: Auto-Clicker",
@@ -33,16 +48,9 @@ return function(Tab, Context)
 		Callback = function() AutoClickToggle:Set(not autoclickerEnabled) end,
 	})
 
-	Tab:CreateSlider({
-		Name = "Задержка кликера (МС)",
-		Range = {1, 1000},
-		Increment = 10,
-		Suffix = " мс",
-		CurrentValue = 10,
-		Flag = "ClickDelay",
-		Callback = function(Value) autoclickerDelay = Value end,
-	})
-
+	-- ===================================
+	Tab:CreateSection("💀 Троллинг")
+	-- ===================================
 	local FlingToggle = Tab:CreateToggle({
 		Name = "Смертельное вращение (Fling)",
 		CurrentValue = false,
@@ -74,6 +82,7 @@ return function(Tab, Context)
 		Callback = function() FlingToggle:Set(not flingEnabled) end,
 	})
 
+	-- Логика (остается без изменений)
 	local function GetClosestPlayerToCursor()
 		local mousePos = Context.UserInputService:GetMouseLocation()
 		local closestDist = math.huge
