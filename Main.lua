@@ -38,14 +38,13 @@ local Tabs = {
 -- ==========================================
 -- ЗАГРУЗКА МОДУЛЕЙ С GITHUB
 -- ==========================================
--- Ваша настоящая ссылка на репозиторий:
 local repoUrl = "https://raw.githubusercontent.com/NamelessOff/rbx/refs/heads/main/"
 
 -- Скачиваем код и сразу передаем в него нужную вкладку (Tabs) и контекст (SharedContext)
 loadstring(game:HttpGet(repoUrl .. "Local.lua"))()(Tabs.Local, SharedContext)
 loadstring(game:HttpGet(repoUrl .. "Combat.lua"))()(Tabs.Combat, SharedContext)
 loadstring(game:HttpGet(repoUrl .. "Visuals.lua"))()(Tabs.Visuals, SharedContext)
-loadstring(game:HttpGet(repoUrl .. "Player.lua"))()(Tabs.Players, SharedContext) -- Исправлено на Player.lua
+loadstring(game:HttpGet(repoUrl .. "Player.lua"))()(Tabs.Players, SharedContext)
 loadstring(game:HttpGet(repoUrl .. "Server.lua"))()(Tabs.Server, SharedContext)
 
 -- ==========================================
