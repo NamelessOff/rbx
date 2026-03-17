@@ -10,7 +10,6 @@ local Window = Rayfield:CreateWindow({
 	Theme = "Ocean",
 })
 
--- Общий контекст со всеми сервисами, который мы передадим в каждый модуль
 local SharedContext = {
 	Player = game:GetService("Players").LocalPlayer,
 	Players = game:GetService("Players"),
@@ -22,34 +21,29 @@ local SharedContext = {
 	HttpService = game:GetService("HttpService"),
 	CoreGui = game:GetService("CoreGui"),
 	Camera = workspace.CurrentCamera,
-	Connections = {}, -- Хранилище всех циклов
-	Cleanups = {}     -- Хранилище функций для очистки мусора (ESP, Парты и тд) при уничтожении
+	Connections = {},
+	Cleanups = {}
 }
 
+-- ИСПОЛЬЗУЕМ КРАСИВЫЕ ИКОНКИ ВМЕСТО ЦИФР
 local Tabs = {
-	Local = Window:CreateTab("Персонаж", 4483362458),
-	Combat = Window:CreateTab("Бой", 4483362458),
-	Visuals = Window:CreateTab("Визуал", 4483362458),
-	Players = Window:CreateTab("Игроки", 4483362458),
-	Server = Window:CreateTab("Сервер", 4483362458),
-	Misc = Window:CreateTab("Разное", 4483362458)
+	Local = Window:CreateTab("Персонаж", "user"),
+	Combat = Window:CreateTab("Бой", "swords"),
+	Visuals = Window:CreateTab("Визуал", "eye"),
+	Players = Window:CreateTab("Игроки", "users"),
+	Server = Window:CreateTab("Сервер", "server"),
+	Misc = Window:CreateTab("Разное", "settings")
 }
 
--- ==========================================
--- ЗАГРУЗКА МОДУЛЕЙ С GITHUB
--- ==========================================
 local repoUrl = "https://raw.githubusercontent.com/NamelessOff/rbx/refs/heads/main/"
 
--- Скачиваем код и сразу передаем в него нужную вкладку (Tabs) и контекст (SharedContext)
 loadstring(game:HttpGet(repoUrl .. "Local.lua"))()(Tabs.Local, SharedContext)
 loadstring(game:HttpGet(repoUrl .. "Combat.lua"))()(Tabs.Combat, SharedContext)
 loadstring(game:HttpGet(repoUrl .. "Visuals.lua"))()(Tabs.Visuals, SharedContext)
 loadstring(game:HttpGet(repoUrl .. "Player.lua"))()(Tabs.Players, SharedContext)
 loadstring(game:HttpGet(repoUrl .. "Server.lua"))()(Tabs.Server, SharedContext)
 
--- ==========================================
--- РАЗНОЕ И УНИЧТОЖЕНИЕ
--- ==========================================
+Tabs.Misc:CreateSection("Автоматизация")
 Tabs.Misc:CreateButton({
 	Name = "Активировать Anti-AFK",
 	Callback = function()
@@ -61,21 +55,17 @@ Tabs.Misc:CreateButton({
 	end,
 })
 
+Tabs.Misc:CreateSection("Управление скриптом")
 Tabs.Misc:CreateButton({
 	Name = "❌ ПОЛНОСТЬЮ УНИЧТОЖИТЬ СКРИПТ",
 	Callback = function()
-		-- 1. Вызываем все локальные функции очистки из модулей
 		for _, cleanupFunc in pairs(SharedContext.Cleanups) do
 			pcall(cleanupFunc)
 		end
-		
-		-- 2. Отключаем все события
 		for _, conn in pairs(SharedContext.Connections) do
 			if conn then conn:Disconnect() end
 		end
 		SharedContext.Connections = {}
-		
-		-- 3. Уничтожаем интерфейс
 		Rayfield:Destroy()
 	end,
 })
