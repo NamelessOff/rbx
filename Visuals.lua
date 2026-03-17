@@ -14,6 +14,9 @@ return function(Tab, Context)
 		FogEnd = Context.Lighting.FogEnd
 	}
 
+	-- ===================================
+	Tab:CreateSection("👁️ Радар и Обнаружение")
+	-- ===================================
 	local EspToggle = Tab:CreateToggle({
 		Name = "Player ESP (Боксы, Имя, ХП, Дистанция)",
 		CurrentValue = false,
@@ -49,6 +52,9 @@ return function(Tab, Context)
 		end,
 	})
 
+	-- ===================================
+	Tab:CreateSection("🌍 Освещение и Окружение")
+	-- ===================================
 	local FullbrightToggle = Tab:CreateToggle({
 		Name = "Fullbright (Ночное видение)",
 		CurrentValue = false,
@@ -73,6 +79,32 @@ return function(Tab, Context)
 	})
 
 	Tab:CreateToggle({
+		Name = "Заморозить время суток",
+		CurrentValue = false,
+		Flag = "FreezeTime",
+		Callback = function(Value) 
+			customTimeEnabled = Value 
+			if not Value then Context.Lighting.ClockTime = origLighting.ClockTime end
+		end,
+	})
+
+	Tab:CreateSlider({
+		Name = "Время суток",
+		Range = {0, 24},
+		Increment = 0.5,
+		Suffix = " ч.",
+		CurrentValue = 12,
+		Flag = "TimeSlider",
+		Callback = function(Value)
+			customTime = Value
+			if customTimeEnabled then Context.Lighting.ClockTime = customTime end
+		end,
+	})
+
+	-- ===================================
+	Tab:CreateSection("🎥 Камера")
+	-- ===================================
+	Tab:CreateToggle({
 		Name = "Принудительный FOV",
 		CurrentValue = false,
 		Flag = "FOVToggle",
@@ -92,29 +124,9 @@ return function(Tab, Context)
 		Callback = function(Value) customFovValue = Value end,
 	})
 
-	Tab:CreateToggle({
-		Name = "Заморозить время суток",
-		CurrentValue = false,
-		Flag = "FreezeTime",
-		Callback = function(Value) 
-			customTimeEnabled = Value 
-			if not Value then Context.Lighting.ClockTime = origLighting.ClockTime end
-		end,
-	})
-
-	Tab:CreateSlider({
-		Name = "Время",
-		Range = {0, 24},
-		Increment = 0.5,
-		Suffix = " ч.",
-		CurrentValue = 12,
-		Flag = "TimeSlider",
-		Callback = function(Value)
-			customTime = Value
-			if customTimeEnabled then Context.Lighting.ClockTime = customTime end
-		end,
-	})
-
+	-- ===================================
+	-- ЛОГИКА (Невидимая часть)
+	-- ===================================
 	table.insert(Context.Connections, Context.Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
 		if Fullbright_Enabled then
 			Context.Lighting.Ambient = Color3.fromRGB(255, 255, 255)
