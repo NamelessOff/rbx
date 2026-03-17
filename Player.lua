@@ -10,6 +10,9 @@ return function(Tab, Context)
 		return names
 	end
 
+	-- ===================================
+	Tab:CreateSection("🎯 Выбор цели")
+	-- ===================================
 	local PlayerDropdown = Tab:CreateDropdown({
 		Name = "Выберите игрока",
 		Options = GetPlayerNames(),
@@ -23,6 +26,9 @@ return function(Tab, Context)
 		Callback = function() PlayerDropdown:Refresh(GetPlayerNames(), true) end,
 	})
 
+	-- ===================================
+	Tab:CreateSection("🏃 Действия")
+	-- ===================================
 	Tab:CreateButton({
 		Name = "Телепорт к игроку (Ему за спину)",
 		Callback = function()
