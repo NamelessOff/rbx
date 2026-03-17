@@ -1,8 +1,10 @@
 return function(Tab, Context)
+	-- ===================================
+	Tab:CreateSection("🌐 Управление сервером")
+	-- ===================================
 	Tab:CreateButton({
 		Name = "🔄 Быстрый перезаход (Rejoin)",
 		Callback = function()
-			-- Используем Rayfield через Context (если бы передавали), либо просто встроенный Notify
 			Context.TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Context.Player)
 		end,
 	})
