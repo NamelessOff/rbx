@@ -2,8 +2,11 @@ return function(Tab, Context)
 	local player = Context.Player
 	local camlockEnabled, isAiming = false, false
 	local camlockTarget = nil
-	local autoclickerEnabled, flingEnabled = false, false
-	local autoclickerDelay = 10 
+	local autoclickerEnabled = false
+	local autoclickerDelay = 10
+	local flingEnabled = false
+	local autoclickerRunning = true
+	local CAMLOCK_MAX_DISTANCE = 150
 
 	-- ===================================
 	Tab:CreateSection("🎯 Помощь в стрельбе")
@@ -12,7 +15,13 @@ return function(Tab, Context)
 		Name = "Aimbot / Camlock (Зажать ПКМ)",
 		CurrentValue = false,
 		Flag = "Camlock",
-		Callback = function(Value) camlockEnabled = Value end,
+		Callback = function(Value)
+			camlockEnabled = Value
+			if not Value then
+				isAiming = false
+				camlockTarget = nil
+			end
+		end,
 	})
 	Tab:CreateKeybind({
 		Name = "⌨️ Бинд: Aimbot",
@@ -29,7 +38,12 @@ return function(Tab, Context)
 		Name = "Auto-Clicker",
 		CurrentValue = false,
 		Flag = "AutoClick",
-		Callback = function(Value) autoclickerEnabled = Value end,
+		Callback = function(Value)
+			autoclickerEnabled = Value
+			if Value then
+				Context.VirtualUser:CaptureController()
+			end
+		end,
 	})
 	Tab:CreateSlider({
 		Name = "Задержка кликера",
@@ -51,27 +65,37 @@ return function(Tab, Context)
 	-- ===================================
 	Tab:CreateSection("💀 Троллинг")
 	-- ===================================
+	local function StartFling()
+		local char = player.Character
+		if char and char:FindFirstChild("HumanoidRootPart") then
+			local hrp = char.HumanoidRootPart
+			if not hrp:FindFirstChild("FlingBAV") then
+				local bav = Instance.new("BodyAngularVelocity")
+				bav.Name = "FlingBAV"
+				bav.AngularVelocity = Vector3.new(0, 99999, 0)
+				bav.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+				bav.P = 100000
+				bav.Parent = hrp
+			end
+		end
+	end
+
+	local function StopFling()
+		local char = player.Character
+		if char and char:FindFirstChild("HumanoidRootPart") then
+			for _, v in pairs(char.HumanoidRootPart:GetChildren()) do
+				if v.Name == "FlingBAV" then v:Destroy() end
+			end
+		end
+	end
+
 	local FlingToggle = Tab:CreateToggle({
 		Name = "Смертельное вращение (Fling)",
 		CurrentValue = false,
 		Flag = "FlingToggle",
-		Callback = function(Value) 
-			flingEnabled = Value 
-			local char = player.Character
-			if char and char:FindFirstChild("HumanoidRootPart") then
-				if Value then
-					local bav = Instance.new("BodyAngularVelocity")
-					bav.Name = "FlingBAV"
-					bav.AngularVelocity = Vector3.new(0, 99999, 0)
-					bav.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-					bav.P = 100000
-					bav.Parent = char.HumanoidRootPart
-				else
-					for _, v in pairs(char.HumanoidRootPart:GetChildren()) do
-						if v.Name == "FlingBAV" then v:Destroy() end
-					end
-				end
-			end
+		Callback = function(Value)
+			flingEnabled = Value
+			if Value then StartFling() else StopFling() end
 		end,
 	})
 	Tab:CreateKeybind({
@@ -81,15 +105,28 @@ return function(Tab, Context)
 		Flag = "FlingBind",
 		Callback = function() FlingToggle:Set(not flingEnabled) end,
 	})
+	table.insert(Context.Connections, player.CharacterAdded:Connect(function()
+		if flingEnabled then
+			task.wait(0.5)
+			StartFling()
+		end
+	end))
 
-	-- Логика (остается без изменений)
+	-- ===================================
+	-- ЛОГИКА
+	-- ===================================
 	local function GetClosestPlayerToCursor()
 		local mousePos = Context.UserInputService:GetMouseLocation()
-		local closestDist = math.huge
+		local closestDist = CAMLOCK_MAX_DISTANCE
 		local target = nil
 
 		for _, p in pairs(Context.Players:GetPlayers()) do
-			if p ~= player and p.Character and p.Character:FindFirstChild("Head") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+			if p ~= player
+				and p.Character
+				and p.Character:FindFirstChild("Head")
+				and p.Character:FindFirstChild("Humanoid")
+				and p.Character.Humanoid.Health > 0
+			then
 				local pos, onScreen = Context.Camera:WorldToViewportPoint(p.Character.Head.Position)
 				if onScreen then
 					local dist = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
@@ -110,7 +147,7 @@ return function(Tab, Context)
 		end
 	end))
 
-	table.insert(Context.Connections, Context.UserInputService.InputEnded:Connect(function(input, gpe)
+	table.insert(Context.Connections, Context.UserInputService.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton2 then
 			isAiming = false
 			camlockTarget = nil
@@ -118,27 +155,30 @@ return function(Tab, Context)
 	end))
 
 	table.insert(Context.Connections, Context.RunService.RenderStepped:Connect(function()
-		if isAiming and camlockTarget and camlockEnabled then 
-			Context.Camera.CFrame = CFrame.new(Context.Camera.CFrame.Position, camlockTarget.Position) 
+		if isAiming and camlockEnabled and camlockTarget and camlockTarget.Parent then
+			Context.Camera.CFrame = CFrame.new(Context.Camera.CFrame.Position, camlockTarget.Position)
+		else
+			if isAiming and not (camlockTarget and camlockTarget.Parent) then
+				camlockTarget = nil
+			end
 		end
 	end))
-
 	task.spawn(function()
-		while true do
+		while autoclickerRunning do
 			task.wait(autoclickerDelay / 1000)
 			if autoclickerEnabled then
-				Context.VirtualUser:CaptureController()
 				Context.VirtualUser:ClickButton1(Vector2.new())
 			end
 		end
 	end)
-	
+
 	table.insert(Context.Cleanups, function()
-		local char = player.Character
-		if char and char:FindFirstChild("HumanoidRootPart") then
-			for _, v in pairs(char.HumanoidRootPart:GetChildren()) do
-				if v.Name == "FlingBAV" then v:Destroy() end
-			end
-		end
+		autoclickerRunning = false
+		autoclickerEnabled = false
+		camlockEnabled = false
+		isAiming = false
+		camlockTarget = nil
+		flingEnabled = false
+		StopFling()
 	end)
 end
