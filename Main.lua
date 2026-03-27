@@ -25,7 +25,6 @@ local SharedContext = {
 	Cleanups = {}
 }
 
--- ИСПОЛЬЗУЕМ КРАСИВЫЕ ИКОНКИ ВМЕСТО ЦИФР
 local Tabs = {
 	Local = Window:CreateTab("Персонаж", "user"),
 	Combat = Window:CreateTab("Бой", "swords"),
@@ -37,11 +36,44 @@ local Tabs = {
 
 local repoUrl = "https://raw.githubusercontent.com/NamelessOff/rbx/refs/heads/main/"
 
-loadstring(game:HttpGet(repoUrl .. "Local.lua"))()(Tabs.Local, SharedContext)
-loadstring(game:HttpGet(repoUrl .. "Combat.lua"))()(Tabs.Combat, SharedContext)
-loadstring(game:HttpGet(repoUrl .. "Visuals.lua"))()(Tabs.Visuals, SharedContext)
-loadstring(game:HttpGet(repoUrl .. "Player.lua"))()(Tabs.Players, SharedContext)
-loadstring(game:HttpGet(repoUrl .. "Server.lua"))()(Tabs.Server, SharedContext)
+-- Безопасная функция для загрузки модулей
+local function LoadModule(fileName, tab)
+    local url = repoUrl .. fileName
+    local success, result = pcall(function()
+        return game:HttpGet(url)
+    end)
+
+    if not success then
+        warn("❌ Не удалось сделать запрос к " .. fileName .. ": " .. tostring(result))
+        return
+    end
+
+    -- Проверка на 404 ошибку от GitHub
+    if result:match("404: Not Found") then
+        warn("❌ Файл не найден (404). Проверьте правильность названия и регистра: " .. fileName)
+        return
+    end
+
+    local func, compileErr = loadstring(result)
+    if not func then
+        warn("❌ Ошибка синтаксиса в " .. fileName .. ":\n" .. tostring(compileErr))
+        return
+    end
+
+    local runSuccess, runErr = pcall(function()
+        func()(tab, SharedContext)
+    end)
+
+    if not runSuccess then
+        warn("❌ Ошибка выполнения в " .. fileName .. ":\n" .. tostring(runErr))
+    end
+end
+
+LoadModule("Local.lua", Tabs.Local)
+LoadModule("Combat.lua", Tabs.Combat)
+LoadModule("Visuals.lua", Tabs.Visuals)
+LoadModule("Player.lua", Tabs.Players) 
+LoadModule("Server.lua", Tabs.Server)
 
 Tabs.Misc:CreateSection("Автоматизация")
 Tabs.Misc:CreateButton({
