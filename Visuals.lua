@@ -5,6 +5,8 @@ return function(Tab, Context)
 	local customFovValue, customTime = 70, 12
 	local defaultFov = 70
 	local ESP_Objects = {}
+	local settingAmbient = false
+	local settingClockTime = false
 
 	local origLighting = {
 		Ambient = Context.Lighting.Ambient,
@@ -45,8 +47,10 @@ return function(Tab, Context)
 		Callback = function(Value)
 			Chams_Enabled = Value
 			if not Value then
-				for _, v in pairs(Context.CoreGui:GetChildren()) do
-					if v.Name == "ChamsHighlight" then v:Destroy() end
+				for _, esp in pairs(ESP_Objects) do
+					if esp.Highlight.Parent then
+						esp.Highlight.Parent = nil
+					end
 				end
 			end
 		end,
@@ -82,8 +86,8 @@ return function(Tab, Context)
 		Name = "Заморозить время суток",
 		CurrentValue = false,
 		Flag = "FreezeTime",
-		Callback = function(Value) 
-			customTimeEnabled = Value 
+		Callback = function(Value)
+			customTimeEnabled = Value
 			if not Value then Context.Lighting.ClockTime = origLighting.ClockTime end
 		end,
 	})
@@ -108,8 +112,8 @@ return function(Tab, Context)
 		Name = "Принудительный FOV",
 		CurrentValue = false,
 		Flag = "FOVToggle",
-		Callback = function(Value) 
-			customFovEnabled = Value 
+		Callback = function(Value)
+			customFovEnabled = Value
 			if not Value then Context.Camera.FieldOfView = defaultFov end
 		end,
 	})
@@ -125,20 +129,24 @@ return function(Tab, Context)
 	})
 
 	-- ===================================
-	-- ЛОГИКА (Невидимая часть)
+	-- ЛОГИКА
 	-- ===================================
 	table.insert(Context.Connections, Context.Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
-		if Fullbright_Enabled then
+		if Fullbright_Enabled and not settingAmbient then
+			settingAmbient = true
 			Context.Lighting.Ambient = Color3.fromRGB(255, 255, 255)
 			Context.Lighting.Brightness = 2
 			Context.Lighting.GlobalShadows = false
-			Context.Lighting.ClockTime = 14
 			Context.Lighting.FogEnd = 100000
+			settingAmbient = false
 		end
 	end))
-
 	table.insert(Context.Connections, Context.Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
-		if customTimeEnabled then Context.Lighting.ClockTime = customTime end
+		if customTimeEnabled and not settingClockTime then
+			settingClockTime = true
+			Context.Lighting.ClockTime = customTime
+			settingClockTime = false
+		end
 	end))
 
 	local function CreateESP(plr)
@@ -153,7 +161,7 @@ return function(Tab, Context)
 		esp.Name.Size, esp.Name.Center, esp.Name.Outline, esp.Name.Color = 16, true, true, Color3.fromRGB(255, 255, 255)
 		esp.HealthBar.Thickness = 2
 		esp.Tracer.Thickness, esp.Tracer.Color = 1, Color3.fromRGB(255, 255, 255)
-		
+
 		esp.Highlight.Name = "ChamsHighlight"
 		esp.Highlight.FillColor = Color3.fromRGB(255, 0, 0)
 		esp.Highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
@@ -181,47 +189,70 @@ return function(Tab, Context)
 
 	table.insert(Context.Connections, Context.RunService.RenderStepped:Connect(function()
 		if customFovEnabled then Context.Camera.FieldOfView = customFovValue end
-		if Fullbright_Enabled then Context.Lighting.Ambient = Color3.fromRGB(255, 255, 255) end
+		if Fullbright_Enabled and not settingAmbient then
+			settingAmbient = true
+			Context.Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+			Context.Lighting.Brightness = 2
+			Context.Lighting.GlobalShadows = false
+			Context.Lighting.ClockTime = 14
+			Context.Lighting.FogEnd = 100000
+			settingAmbient = false
+		end
 
 		for plr, esp in pairs(ESP_Objects) do
 			local char = plr.Character
-			local isValid = char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0
-			
+			local isValid = char
+				and char:FindFirstChild("HumanoidRootPart")
+				and char:FindFirstChild("Humanoid")
+				and char.Humanoid.Health > 0
+
 			if isValid then
 				local hrp, hum = char.HumanoidRootPart, char.Humanoid
 				local pos, onScreen = Context.Camera:WorldToViewportPoint(hrp.Position)
-				
+
 				if Chams_Enabled then
-					esp.Highlight.Parent, esp.Highlight.Adornee = Context.CoreGui, char
-				else esp.Highlight.Parent = nil end
+					esp.Highlight.Parent = Context.CoreGui
+					esp.Highlight.Adornee = char
+				else
+					esp.Highlight.Parent = nil
+				end
 
 				if onScreen then
 					local distance = math.floor((Context.Camera.CFrame.Position - hrp.Position).Magnitude)
 					local size = Vector2.new(2000 / pos.Z, 3000 / pos.Z)
 					local boxPos = Vector2.new(pos.X - size.X / 2, pos.Y - size.Y / 2)
-					
+
 					if ESP_Enabled then
 						esp.Box.Size, esp.Box.Position, esp.Box.Visible = size, boxPos, true
-						esp.Name.Text, esp.Name.Position, esp.Name.Visible = string.format("%s [%d]", plr.Name, distance), Vector2.new(pos.X, boxPos.Y - 20), true
-						local healthPercent = hum.Health / hum.MaxHealth
-						esp.HealthBar.From, esp.HealthBar.To = Vector2.new(boxPos.X - 5, boxPos.Y + size.Y), Vector2.new(boxPos.X - 5, boxPos.Y + size.Y - (size.Y * healthPercent))
-						esp.HealthBar.Color, esp.HealthBar.Visible = Color3.fromRGB(255 - (healthPercent * 255), healthPercent * 255, 0), true
+						esp.Name.Text = string.format("%s [%d]", plr.Name, distance)
+						esp.Name.Position, esp.Name.Visible = Vector2.new(pos.X, boxPos.Y - 20), true
+						local maxHp = hum.MaxHealth
+						local healthPercent = (maxHp > 0) and (hum.Health / maxHp) or 0
+						esp.HealthBar.From = Vector2.new(boxPos.X - 5, boxPos.Y + size.Y)
+						esp.HealthBar.To = Vector2.new(boxPos.X - 5, boxPos.Y + size.Y - (size.Y * healthPercent))
+						esp.HealthBar.Color = Color3.fromRGB(255 - (healthPercent * 255), healthPercent * 255, 0)
+						esp.HealthBar.Visible = true
 					else
 						esp.Box.Visible, esp.Name.Visible, esp.HealthBar.Visible = false, false, false
 					end
-					
+
 					if Tracers_Enabled then
-						esp.Tracer.From, esp.Tracer.To, esp.Tracer.Visible = Vector2.new(Context.Camera.ViewportSize.X / 2, Context.Camera.ViewportSize.Y), Vector2.new(pos.X, pos.Y), true
-					else esp.Tracer.Visible = false end
+						esp.Tracer.From = Vector2.new(Context.Camera.ViewportSize.X / 2, Context.Camera.ViewportSize.Y)
+						esp.Tracer.To = Vector2.new(pos.X, pos.Y)
+						esp.Tracer.Visible = true
+					else
+						esp.Tracer.Visible = false
+					end
 				else
 					esp.Box.Visible, esp.Name.Visible, esp.HealthBar.Visible, esp.Tracer.Visible = false, false, false, false
 				end
 			else
-				esp.Box.Visible, esp.Name.Visible, esp.HealthBar.Visible, esp.Tracer.Visible, esp.Highlight.Parent = false, false, false, false, nil
+				esp.Box.Visible, esp.Name.Visible, esp.HealthBar.Visible, esp.Tracer.Visible = false, false, false, false
+				esp.Highlight.Parent = nil
 			end
 		end
 	end))
-	
+
 	table.insert(Context.Cleanups, function()
 		Context.Lighting.Ambient = origLighting.Ambient
 		Context.Lighting.Brightness = origLighting.Brightness
@@ -229,13 +260,13 @@ return function(Tab, Context)
 		Context.Lighting.ClockTime = origLighting.ClockTime
 		Context.Lighting.FogEnd = origLighting.FogEnd
 		Context.Camera.FieldOfView = defaultFov
-		
-		for _, esp in pairs(ESP_Objects) do
+		for plr, esp in pairs(ESP_Objects) do
 			esp.Box:Remove()
 			esp.Name:Remove()
 			esp.HealthBar:Remove()
 			esp.Tracer:Remove()
 			if esp.Highlight.Parent then esp.Highlight:Destroy() end
+			ESP_Objects[plr] = nil
 		end
 	end)
 end
