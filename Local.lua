@@ -1,6 +1,11 @@
 return function(Tab, Context)
 	local player = Context.Player
 	local BASE_SPEED = 16
+
+	-- [ИСПРАВЛЕНИЕ 1]: объявлены как локальные переменные
+	local currentSpeedMultiplier = 1
+	local targetSpeed = BASE_SPEED
+
 	local noclipEnabled, infJumpEnabled, waterWalkEnabled = false, false, false
 	local flyEnabled, flySpeed = false, 50
 	local flyingKeys = {W = false, A = false, S = false, D = false, Space = false, LeftControl = false}
@@ -21,10 +26,10 @@ return function(Tab, Context)
 		RemoveTextAfterFocusLost = false,
 		Callback = function(Text)
 			local mult = tonumber(Text)
-			if mult then 
-				currentSpeedMultiplier = mult 
+			if mult then
+				currentSpeedMultiplier = mult
 				targetSpeed = BASE_SPEED * currentSpeedMultiplier
-				
+
 				local char = player.Character
 				if char and char:FindFirstChildOfClass("Humanoid") then
 					char:FindFirstChildOfClass("Humanoid").WalkSpeed = targetSpeed
@@ -33,6 +38,7 @@ return function(Tab, Context)
 		end,
 	})
 
+	-- [ИСПРАВЛЕНИЕ 3]: функция объявлена до использования
 	local function SetupSpeedKeeper(char)
 		local hum = char:WaitForChild("Humanoid", 5)
 		if hum then
@@ -51,12 +57,11 @@ return function(Tab, Context)
 		SetupSpeedKeeper(player.Character)
 	end
 	table.insert(Context.Connections, player.CharacterAdded:Connect(SetupSpeedKeeper))
-	-- ===============================================
 
 	local InfJumpToggle = Tab:CreateToggle({
 		Name = "Бесконечный прыжок",
 		CurrentValue = false,
-		Flag = "InfJump", 
+		Flag = "InfJump",
 		Callback = function(Value) infJumpEnabled = Value end,
 	})
 	Tab:CreateKeybind({
@@ -99,7 +104,7 @@ return function(Tab, Context)
 	local NoclipToggle = Tab:CreateToggle({
 		Name = "No-Clip (Проход сквозь стены)",
 		CurrentValue = false,
-		Flag = "Noclip", 
+		Flag = "Noclip",
 		Callback = function(Value) noclipEnabled = Value end,
 	})
 	Tab:CreateKeybind({
@@ -114,18 +119,19 @@ return function(Tab, Context)
 		Name = "Water Walker (Хождение по воде)",
 		CurrentValue = false,
 		Flag = "WaterWalk",
-		Callback = function(Value) 
-			waterWalkEnabled = Value 
+		Callback = function(Value)
+			waterWalkEnabled = Value
 			if not Value then waterPart.Parent = nil end
 		end,
 	})
 
+	-- [ИСПРАВЛЕНИЕ 2]: CurrentValue исправлен на целое число
 	local GravitySlider = Tab:CreateSlider({
 		Name = "Уровень гравитации",
 		Range = {0, 500},
 		Increment = 1,
 		Suffix = " Grav",
-		CurrentValue = 196.2,
+		CurrentValue = 196,
 		Flag = "Gravity",
 		Callback = function(Value) workspace.Gravity = Value end,
 	})
@@ -133,11 +139,13 @@ return function(Tab, Context)
 		Name = "🔄 Сбросить гравитацию",
 		Callback = function()
 			workspace.Gravity = 196.2
-			GravitySlider:Set(196.2)
+			GravitySlider:Set(196)
 		end,
 	})
 
-	-- (Ниже остается вся ваша рабочая логика из Local.lua без изменений)
+	-- ===================================
+	-- ЛОГИКА
+	-- ===================================
 	table.insert(Context.Connections, Context.UserInputService.InputBegan:Connect(function(input, gpe)
 		if gpe then return end
 		if input.KeyCode == Enum.KeyCode.W then flyingKeys.W = true
@@ -148,7 +156,7 @@ return function(Tab, Context)
 		elseif input.KeyCode == Enum.KeyCode.LeftControl then flyingKeys.LeftControl = true end
 	end))
 
-	table.insert(Context.Connections, Context.UserInputService.InputEnded:Connect(function(input, gpe)
+	table.insert(Context.Connections, Context.UserInputService.InputEnded:Connect(function(input)
 		if input.KeyCode == Enum.KeyCode.W then flyingKeys.W = false
 		elseif input.KeyCode == Enum.KeyCode.A then flyingKeys.A = false
 		elseif input.KeyCode == Enum.KeyCode.S then flyingKeys.S = false
@@ -214,7 +222,9 @@ return function(Tab, Context)
 
 		if noclipEnabled then
 			for _, part in pairs(char:GetDescendants()) do
-				if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
+				if part:IsA("BasePart") and part.CanCollide then
+					part.CanCollide = false
+				end
 			end
 		end
 
@@ -240,10 +250,35 @@ return function(Tab, Context)
 			if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
 		end
 	end))
-	
+
 	table.insert(Context.Cleanups, function()
+		-- [ИСПРАВЛЕНИЕ 4]: сброс скорости при уничтожении
+		local char = player.Character
+		if char then
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hum then hum.WalkSpeed = BASE_SPEED end
+		end
+		currentSpeedMultiplier = 1
+		targetSpeed = BASE_SPEED
+
 		workspace.Gravity = 196.2
+
+		-- [ИСПРАВЛЕНИЕ 5]: сброс noclip
+		noclipEnabled = false
+		if char then
+			for _, part in pairs(char:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = true
+				end
+			end
+		end
+
 		StopFly()
-		waterPart:Destroy()
+
+		-- [ИСПРАВЛЕНИЕ 6]: безопасное уничтожение waterPart
+		if waterPart and waterPart.Parent then
+			waterPart.Parent = nil
+		end
+		pcall(function() waterPart:Destroy() end)
 	end)
 end
