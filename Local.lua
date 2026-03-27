@@ -20,13 +20,38 @@ return function(Tab, Context)
 		PlaceholderText = "Например: 1.5",
 		RemoveTextAfterFocusLost = false,
 		Callback = function(Text)
-			local char = player.Character
-			if char and char:FindFirstChildOfClass("Humanoid") then
-				local mult = tonumber(Text)
-				if mult then char:FindFirstChildOfClass("Humanoid").WalkSpeed = BASE_SPEED * mult end
+			local mult = tonumber(Text)
+			if mult then 
+				currentSpeedMultiplier = mult 
+				targetSpeed = BASE_SPEED * currentSpeedMultiplier
+				
+				local char = player.Character
+				if char and char:FindFirstChildOfClass("Humanoid") then
+					char:FindFirstChildOfClass("Humanoid").WalkSpeed = targetSpeed
+				end
 			end
 		end,
 	})
+
+	local function SetupSpeedKeeper(char)
+		local hum = char:WaitForChild("Humanoid", 5)
+		if hum then
+			if currentSpeedMultiplier ~= 1 then
+				hum.WalkSpeed = targetSpeed
+			end
+			table.insert(Context.Connections, hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+				if currentSpeedMultiplier ~= 1 and hum.WalkSpeed ~= targetSpeed then
+					hum.WalkSpeed = targetSpeed
+				end
+			end))
+		end
+	end
+
+	if player.Character then
+		SetupSpeedKeeper(player.Character)
+	end
+	table.insert(Context.Connections, player.CharacterAdded:Connect(SetupSpeedKeeper))
+	-- ===============================================
 
 	local InfJumpToggle = Tab:CreateToggle({
 		Name = "Бесконечный прыжок",
