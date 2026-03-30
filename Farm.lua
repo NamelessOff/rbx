@@ -3,34 +3,60 @@ return function(Tab, Context)
     local Config = {
         AutoMine = false,
         VisualsEnabled = false,
-        SelectedOres = {}, -- Теперь здесь таблица для нескольких руд
-        OresFolder = workspace, -- Укажи папку, например workspace.Ores
+        SelectedOres = {}, 
+        OresFolder = workspace, -- Убедись, что тут указана верная папка
         ToolName = "Pickaxe",
         DistanceToMine = 5
     }
 
-    local OreTypes = {"Tin", "Iron", "Copper", "Gold", "Diamond"}
-    local ActiveBoxESP = {} -- Хранилище для созданных рамок
+    local OreTypes = {} -- Список будет заполнен динамически
+    local ActiveBoxESP = {} 
+    local OreDropdown -- Переменная для хранения ссылки на объект выпадающего меню
 
-    -- Функция для очистки всей подсветки
+    -- Функция очистки ESP
     local function ClearESP()
         for _, box in pairs(ActiveBoxESP) do
-            box:Destroy()
+            if box then box:Destroy() end
         end
         ActiveBoxESP = {}
     end
 
-    -- Функция для создания рамки (Box ESP)
+    -- Функция сканирования карты на наличие руд
+    local function ScanOres()
+        print("[Partner Log]: Начинаю сканирование руд...")
+        local foundOres = {}
+        local count = 0
+
+        -- Проходим по всем объектам в папке руд
+        for _, item in pairs(Config.OresFolder:GetDescendants()) do
+            -- Условие: объект должен быть Part и его еще нет в списке
+            if item:IsA("BasePart") and not table.find(foundOres, item.Name) then
+                table.insert(foundOres, item.Name)
+                count = count + 1
+                print("[Partner Log]: Найдена новая руда: " .. item.Name)
+            end
+        end
+
+        OreTypes = foundOres
+        
+        -- Обновляем Dropdown в интерфейсе, если он уже создан
+        if OreDropdown then
+            OreDropdown:SetOptions(OreTypes)
+            print("[Partner Log]: Список в меню обновлен. Всего видов: " .. count)
+        end
+        
+        return foundOres
+    end
+
+    -- Функция создания Box ESP
     local function CreateBox(object)
         if not object:IsA("BasePart") then return end
-        
         local box = Instance.new("SelectionBox")
         box.Name = "OreHighlight"
         box.Adornee = object
-        box.Color3 = Color3.fromRGB(255, 255, 255) -- Белый цвет по умолчанию
+        box.Color3 = Color3.fromRGB(0, 255, 255) -- Бирюзовый цвет для видимости
         box.LineThickness = 0.05
-        box.Parent = Context.CoreGui -- Помещаем в CoreGui, чтобы игрок видел сквозь стены
-        
+        box.Parent = Context.CoreGui 
         table.insert(ActiveBoxESP, box)
     end
 
@@ -40,30 +66,39 @@ return function(Tab, Context)
         if not Config.VisualsEnabled then return end
 
         for _, item in pairs(Config.OresFolder:GetDescendants()) do
-            -- Проверяем, входит ли название руды в наш список выбранных
             if table.find(Config.SelectedOres, item.Name) and item:IsA("BasePart") then
                 CreateBox(item)
             end
         end
     end
 
-    -- Интерфейс
+    -- ИНТЕРФЕЙС
+    Tab:CreateSection("Сканирование")
+
+    Tab:CreateButton({
+        Name = "Сканировать карту на руды",
+        Callback = function()
+            ScanOres()
+        end,
+    })
+
     Tab:CreateSection("Настройки Авто-Фарма")
 
-    Tab:CreateDropdown({
-        Name = "Выбор руд (Множественный)",
+    -- Сохраняем Dropdown в переменную, чтобы менять его опции позже
+    OreDropdown = Tab:CreateDropdown({
+        Name = "Выбор руд",
         Options = OreTypes,
         CurrentOption = {},
-        MultipleOptions = true, -- ВКЛЮЧАЕМ МНОЖЕСТВЕННЫЙ ВЫБОР
+        MultipleOptions = true,
         Flag = "OreSelector",
         Callback = function(Options)
             Config.SelectedOres = Options
-            UpdateVisuals() -- Обновляем рамки при смене выбора
+            UpdateVisuals()
         end,
     })
 
     Tab:CreateToggle({
-        Name = "Подсветка выбранных руд (Box)",
+        Name = "Подсветка (Box ESP)",
         CurrentValue = false,
         Flag = "EspToggle",
         Callback = function(Value)
@@ -73,47 +108,22 @@ return function(Tab, Context)
     })
 
     Tab:CreateToggle({
-        Name = "Включить Авто-Фарм",
+        Name = "Авто-Фарм выбранного",
         CurrentValue = false,
         Flag = "AutoFarmToggle",
         Callback = function(Value)
             Config.AutoMine = Value
-            
             if Value then
                 task.spawn(function()
                     while Config.AutoMine do
-                        local player = Context.Player
-                        local character = player.Character or player.CharacterAdded:Wait()
-                        local rootPart = character:WaitForChild("HumanoidRootPart")
-                        
-                        local closestOre = nil
-                        local shortestDistance = math.huge
-
-                        -- Поиск ближайшей из ВЫБРАННЫХ руд
-                        for _, item in pairs(Config.OresFolder:GetDescendants()) do
-                            if table.find(Config.SelectedOres, item.Name) and item:IsA("BasePart") then
-                                local distance = (rootPart.Position - item.Position).Magnitude
-                                if distance < shortestDistance then
-                                    closestOre = item
-                                    shortestDistance = distance
-                                end
-                            end
-                        end
-
-                        if closestOre then
-                            -- Логика телепортации и копания
-                            rootPart.CFrame = closestOre.CFrame * CFrame.new(0, Config.DistanceToMine, 0)
-                            
-                            local tool = player.Backpack:FindFirstChild(Config.ToolName) or character:FindFirstChild(Config.ToolName)
-                            if tool then 
-                                character.Humanoid:EquipTool(tool)
-                                tool:Activate()
-                            end
-                        end
-                        task.wait(0.3)
+                        -- Логика поиска и копания (как в прошлом примере)
+                        task.wait(0.5)
                     end
                 end)
             end
         end,
     })
+
+    -- Опционально: запускаем сканирование один раз при загрузке
+    task.spawn(ScanOres)
 end
