@@ -31,6 +31,7 @@ local Tabs = {
 	Visuals = Window:CreateTab("Визуал", "eye"),
 	Players = Window:CreateTab("Игроки", "users"),
 	Server = Window:CreateTab("Сервер", "server"),
+	Farm = Window:CreateTab("Фарм", "pickaxe"),
 	Misc = Window:CreateTab("Разное", "settings")
 }
 
@@ -74,6 +75,7 @@ LoadModule("Combat.lua", Tabs.Combat)
 LoadModule("Visuals.lua", Tabs.Visuals)
 LoadModule("Player.lua", Tabs.Players) 
 LoadModule("Server.lua", Tabs.Server)
+LoadModule("Farm.lua", Tabs.Farm)
 
 Tabs.Misc:CreateSection("Автоматизация")
 Tabs.Misc:CreateButton({
