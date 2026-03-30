@@ -1,25 +1,18 @@
 return function(Tab, Context)
-    -- ==========================================
-    -- КОНФИГУРАЦИЯ И ПЕРЕМЕННЫЕ
-    -- ==========================================
     local Config = {
         AutoMine = false,
         VisualsEnabled = false,
-        SelectedOres = {},      -- Список выбранных пользователем руд
-        OresFolder = workspace,  -- ПАПКА ДЛЯ ПОИСКА (измени на workspace.Ores если нужно)
-        ToolName = "Pickaxe",    -- Название кирки
-        DistanceToMine = 5       -- Дистанция взаимодействия
+        SelectedOres = {}, 
+        OresFolder = workspace, -- Убедись, что папка указана верно
+        ToolName = "Pickaxe",
+        DistanceToMine = 5
     }
 
-    local OreTypes = {}       -- Сюда попадут найденные названия (напр. "Gold Ore")
-    local ActiveBoxESP = {}   -- Хранилище для объектов подсветки
-    local OreDropdown         -- Ссылка на элемент интерфейса
+    local OreTypes = {} 
+    local ActiveBoxESP = {} 
+    local OreDropdown 
 
-    -- ==========================================
-    -- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (ЛОГИКА)
-    -- ==========================================
-
-    -- Очистка всех созданных рамок подсветки
+    -- Очистка ESP
     local function ClearESP()
         for _, box in pairs(ActiveBoxESP) do
             if box then box:Destroy() end
@@ -27,89 +20,95 @@ return function(Tab, Context)
         ActiveBoxESP = {}
     end
 
-    -- Функция сканирования карты
+    -- УМНОЕ СКАНЕРОВАНИЕ
     local function ScanForOres()
         print("------------------------------------------")
-        print("[Partner Log]: Начало сканирования объектов...")
+        print("[Partner Log]: Начало умного сканирования...")
         
-        local foundNames = {} -- Временная таблица для проверки уникальности
-        local newOptions = {} -- Таблица для передачи в Dropdown
+        local foundNames = {} 
+        local newOptions = {} 
         
-        -- Перебираем всё содержимое папки OresFolder
         for _, item in pairs(Config.OresFolder:GetDescendants()) do
-            -- УСЛОВИЕ: Имя содержит "Ore", объект является Part и мы его еще не записывали
-            if item:IsA("BasePart") and string.find(string.lower(item.Name), "ore") then
-                if not foundNames[item.Name] then
-                    foundNames[item.Name] = true
-                    table.insert(newOptions, item.Name)
-                    print("[Partner Log]: ОБНАРУЖЕНО: " .. item.Name)
-                end
+            if item:IsA("BasePart") then
+                local name = item.Name
+                local parentName = item.Parent and item.Parent.Name or ""
+                
+                -- Проверяем, есть ли "Ore" в имени парта или его родителя
+                -- if string.find(string.lower(name), "ore") or string.find(string.lower(parentName), "ore") then
+                    
+                    -- Если сам парт называется безлико (напр. OreMesh), берем имя родителя
+                    local displayName = name
+                    if name == "OreMesh" or name == "Part" or name == "MeshPart" then
+                        displayName = parentName
+                    end
+
+                    -- Добавляем в список только уникальные красивые названия
+                    if not foundNames[displayName] and displayName ~= "" then
+                        foundNames[displayName] = true
+                        table.insert(newOptions, displayName)
+                        print("[Partner Log]: Найдена категория: " .. displayName)
+                    end
+                -- end
             end
         end
 
         OreTypes = newOptions
-        
-        -- Обновляем выпадающий список в меню
         if OreDropdown then
             OreDropdown:Refresh(OreTypes, false)
-            print("[Partner Log]: Сканирование завершено. Найдено типов: " .. #OreTypes)
+            print("[Partner Log]: Меню обновлено. Найдено типов: " .. #OreTypes)
         end
     end
 
-    -- Создание рамки вокруг конкретного парта
-    local function CreateBox(object)
-        local box = Instance.new("SelectionBox")
-        box.Name = "Partner_ESP_Box"
-        box.Adornee = object
-        box.Color3 = Color3.fromRGB(0, 255, 255) -- Бирюзовый цвет
-        box.LineThickness = 0.05
-        box.Parent = Context.CoreGui -- Рисуем поверх всего интерфейса
-        table.insert(ActiveBoxESP, box)
-    end
-
-    -- Обновление всей подсветки на экране
+    -- ФУНКЦИЯ ОБНОВЛЕНИЯ ВИЗУАЛОВ
     local function UpdateVisuals()
         ClearESP()
         if not Config.VisualsEnabled then return end
 
         for _, item in pairs(Config.OresFolder:GetDescendants()) do
-            -- Если имя объекта есть в списке выбранных в меню
-            if table.find(Config.SelectedOres, item.Name) and item:IsA("BasePart") then
-                CreateBox(item)
+            if item:IsA("BasePart") then
+                local name = item.Name
+                local parentName = item.Parent and item.Parent.Name or ""
+                
+                -- Проверяем: совпадает ли имя парта ИЛИ имя родителя с выбранным в списке
+                local isSelected = table.find(Config.SelectedOres, name) or table.find(Config.SelectedOres, parentName)
+
+                if isSelected then
+                    local box = Instance.new("SelectionBox")
+                    box.Name = "Partner_ESP_Box"
+                    box.Adornee = item
+                    box.Color3 = Color3.fromRGB(0, 255, 255)
+                    box.LineThickness = 0.05
+                    box.Parent = Context.CoreGui
+                    table.insert(ActiveBoxESP, box)
+                end
             end
         end
     end
 
-    -- ==========================================
-    -- СОЗДАНИЕ ИНТЕРФЕЙСА (RAYFIELD)
-    -- ==========================================
-
-    Tab:CreateSection("Поиск ресурсов")
-
+    -- (Далее идет остальной код интерфейса: создание кнопок и Dropdown)
+    -- Не забудь использовать OreDropdown:Refresh(OreTypes, false) вместо SetOptions
+    
+    -- Пример создания Dropdown:
+    Tab:CreateSection("Поиск")
     Tab:CreateButton({
-        Name = "🔍 Найти все руды на карте",
-        Callback = function()
-            ScanForOres()
-        end,
+        Name = "🔍 Сканировать руды",
+        Callback = ScanForOres
     })
 
-    Tab:CreateSection("Настройки Авто-Фарма")
-
-    -- Выпадающее меню с множественным выбором
     OreDropdown = Tab:CreateDropdown({
-        Name = "Выберите руды для работы",
+        Name = "Выберите руды",
         Options = OreTypes,
         CurrentOption = {},
-        MultipleOptions = true, -- Разрешаем выбирать несколько
+        MultipleOptions = true,
         Flag = "OreSelector",
         Callback = function(Options)
             Config.SelectedOres = Options
-            UpdateVisuals() -- Перерисовываем рамки при каждом изменении выбора
+            UpdateVisuals()
         end,
     })
 
     Tab:CreateToggle({
-        Name = "Подсветка (Box ESP)",
+        Name = "Подсветка (Box)",
         CurrentValue = false,
         Flag = "EspToggle",
         Callback = function(Value)
@@ -117,24 +116,6 @@ return function(Tab, Context)
             UpdateVisuals()
         end,
     })
-
-    Tab:CreateToggle({
-        Name = "Включить Авто-Фарм",
-        CurrentValue = false,
-        Flag = "AutoFarmToggle",
-        Callback = function(Value)
-            Config.AutoMine = Value
-            if Value then
-                task.spawn(function()
-                    while Config.AutoMine do
-                        -- Тут твоя логика перемещения к ближайшей руде из Config.SelectedOres
-                        task.wait(0.5)
-                    end
-                end)
-            end
-        end,
-    })
-
-    -- Автоматический запуск поиска при загрузке скрипта
+    
     task.spawn(ScanForOres)
 end
