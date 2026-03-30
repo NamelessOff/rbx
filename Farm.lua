@@ -38,7 +38,7 @@ return function(Tab, Context)
         -- Перебираем всё содержимое папки OresFolder
         for _, item in pairs(Config.OresFolder:GetDescendants()) do
             -- УСЛОВИЕ: Имя содержит "Ore", объект является Part и мы его еще не записывали
-            if item:IsA("BasePart") and string.find(item.Name, "Ore") then
+            if item:IsA("BasePart") and string.find(string.lower(item.Name), "ore") then
                 if not foundNames[item.Name] then
                     foundNames[item.Name] = true
                     table.insert(newOptions, item.Name)
@@ -51,7 +51,7 @@ return function(Tab, Context)
         
         -- Обновляем выпадающий список в меню
         if OreDropdown then
-            OreDropdown:SetOptions(OreTypes)
+            OreDropdown:Refresh(OreTypes, false)
             print("[Partner Log]: Сканирование завершено. Найдено типов: " .. #OreTypes)
         end
     end
