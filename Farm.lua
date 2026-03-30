@@ -80,29 +80,47 @@ return function(Tab, Context)
         ActiveBoxESP = {}
     end
 
-    -- Обновленная функция сканирования
+    -- ==========================================
+    -- ЧЕРНЫЙ СПИСОК (Игнорируем технические детали)
+    -- ==========================================
+    local Blacklist = {
+        "Hitbox", "Centre", "Block", "PlacedOre", "OreIngredientMesh",
+        "CasingCentre", "CubicBlockMetal", "ShaleMetalBlock", "GemBlockMesh",
+        "OreBlockPolished", "CrystallineMetalOre", "CrystallineOre"
+    }
+
+    -- Функция для проверки, есть ли имя в черном списке
+    local function IsBlacklisted(name)
+        for _, badName in pairs(Blacklist) do
+            if name == badName then return true end
+        end
+        return false
+    end
+
+    -- ==========================================
+    -- ОБНОВЛЕННОЕ УМНОЕ СКАНИРОВАНИЕ
+    -- ==========================================
     local function ScanForOres()
         print("------------------------------------------")
-        print("[Partner Log]: Начало умного сканирования...")
+        print("[Partner Log]: Начало сканирования с учетом Моделей и Черного списка...")
         
         local foundNames = {} 
         local newOptions = {} 
         
         for _, item in pairs(Config.OresFolder:GetDescendants()) do
-            if item:IsA("BasePart") then
+            -- ТЕПЕРЬ МЫ ИЩЕМ И МОДЕЛИ (Model), И ДЕТАЛИ (BasePart)
+            if item:IsA("Model") or item:IsA("BasePart") then
                 local name = item.Name
-                local parentName = item.Parent and item.Parent.Name or ""
+                local lowerName = string.lower(name)
                 
-                if string.find(string.lower(name), "ore") or string.find(string.lower(parentName), "ore") then
-                    local displayName = name
-                    if name == "OreMesh" or name == "Part" or name == "MeshPart" then
-                        displayName = parentName
-                    end
-
-                    if not foundNames[displayName] and displayName ~= "" then
-                        foundNames[displayName] = true
-                        table.insert(newOptions, displayName)
-                        print("[Partner Log]: Найдена категория: " .. displayName)
+                -- Проверяем, есть ли в названии слова "ore" (руда) или "gemstone" (самоцвет)
+                if string.find(lowerName, "ore") or string.find(lowerName, "gemstone") then
+                    
+                    -- Если имя НЕ в черном списке и мы его еще не записывали
+                    if not IsBlacklisted(name) and not foundNames[name] then
+                        foundNames[name] = true
+                        table.insert(newOptions, name)
+                        print("[Partner Log]: Чистая руда добавлена в список: " .. name)
                     end
                 end
             end
@@ -112,27 +130,27 @@ return function(Tab, Context)
         
         if OreDropdown then
             OreDropdown:Refresh(OreTypes, false)
-            print("[Partner Log]: Меню обновлено. Найдено типов: " .. #OreTypes)
+            print("[Partner Log]: Меню обновлено. Доступно руд: " .. #OreTypes)
         end
 
-        -- СОХРАНЯЕМ РЕЗУЛЬТАТ В ФАЙЛ
         if #OreTypes > 0 then
             SaveOresToFile()
         end
     end
 
+    -- ==========================================
+    -- ОБНОВЛЕННЫЕ ВИЗУАЛЫ (ESP ДЛЯ МОДЕЛЕЙ)
+    -- ==========================================
     local function UpdateVisuals()
         ClearESP()
         if not Config.VisualsEnabled then return end
 
         for _, item in pairs(Config.OresFolder:GetDescendants()) do
-            if item:IsA("BasePart") then
-                local name = item.Name
-                local parentName = item.Parent and item.Parent.Name or ""
+            -- Проверяем, есть ли имя объекта в выбранных нами в меню
+            if table.find(Config.SelectedOres, item.Name) then
                 
-                local isSelected = table.find(Config.SelectedOres, name) or table.find(Config.SelectedOres, parentName)
-
-                if isSelected then
+                -- Если это Модель или Деталь - вешаем на неё рамку
+                if item:IsA("Model") or item:IsA("BasePart") then
                     local box = Instance.new("SelectionBox")
                     box.Name = "Partner_ESP_Box"
                     box.Adornee = item
@@ -141,6 +159,7 @@ return function(Tab, Context)
                     box.Parent = Context.CoreGui
                     table.insert(ActiveBoxESP, box)
                 end
+                
             end
         end
     end
