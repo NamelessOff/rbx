@@ -1,19 +1,25 @@
 return function(Tab, Context)
-    -- Настройки
+    -- ==========================================
+    -- КОНФИГУРАЦИЯ И ПЕРЕМЕННЫЕ
+    -- ==========================================
     local Config = {
         AutoMine = false,
         VisualsEnabled = false,
-        SelectedOres = {}, 
-        OresFolder = workspace, -- Убедись, что тут указана верная папка
-        ToolName = "Pickaxe",
-        DistanceToMine = 5
+        SelectedOres = {},      -- Список выбранных пользователем руд
+        OresFolder = workspace,  -- ПАПКА ДЛЯ ПОИСКА (измени на workspace.Ores если нужно)
+        ToolName = "Pickaxe",    -- Название кирки
+        DistanceToMine = 5       -- Дистанция взаимодействия
     }
 
-    local OreTypes = {} -- Список будет заполнен динамически
-    local ActiveBoxESP = {} 
-    local OreDropdown -- Переменная для хранения ссылки на объект выпадающего меню
+    local OreTypes = {}       -- Сюда попадут найденные названия (напр. "Gold Ore")
+    local ActiveBoxESP = {}   -- Хранилище для объектов подсветки
+    local OreDropdown         -- Ссылка на элемент интерфейса
 
-    -- Функция очистки ESP
+    -- ==========================================
+    -- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (ЛОГИКА)
+    -- ==========================================
+
+    -- Очистка всех созданных рамок подсветки
     local function ClearESP()
         for _, box in pairs(ActiveBoxESP) do
             if box then box:Destroy() end
@@ -21,79 +27,84 @@ return function(Tab, Context)
         ActiveBoxESP = {}
     end
 
-    -- Функция сканирования карты на наличие руд
-    local function ScanOres()
-        print("[Partner Log]: Начинаю сканирование руд...")
-        local foundOres = {}
-        local count = 0
-
-        -- Проходим по всем объектам в папке руд
+    -- Функция сканирования карты
+    local function ScanForOres()
+        print("------------------------------------------")
+        print("[Partner Log]: Начало сканирования объектов...")
+        
+        local foundNames = {} -- Временная таблица для проверки уникальности
+        local newOptions = {} -- Таблица для передачи в Dropdown
+        
+        -- Перебираем всё содержимое папки OresFolder
         for _, item in pairs(Config.OresFolder:GetDescendants()) do
-            -- Условие: объект должен быть Part и его еще нет в списке
-            if item:IsA("BasePart") and not table.find(foundOres, item.Name) then
-                table.insert(foundOres, item.Name)
-                count = count + 1
-                print("[Partner Log]: Найдена новая руда: " .. item.Name)
+            -- УСЛОВИЕ: Имя содержит "Ore", объект является Part и мы его еще не записывали
+            if item:IsA("BasePart") and string.find(item.Name, "Ore") then
+                if not foundNames[item.Name] then
+                    foundNames[item.Name] = true
+                    table.insert(newOptions, item.Name)
+                    print("[Partner Log]: ОБНАРУЖЕНО: " .. item.Name)
+                end
             end
         end
 
-        OreTypes = foundOres
+        OreTypes = newOptions
         
-        -- Обновляем Dropdown в интерфейсе, если он уже создан
+        -- Обновляем выпадающий список в меню
         if OreDropdown then
             OreDropdown:SetOptions(OreTypes)
-            print("[Partner Log]: Список в меню обновлен. Всего видов: " .. count)
+            print("[Partner Log]: Сканирование завершено. Найдено типов: " .. #OreTypes)
         end
-        
-        return foundOres
     end
 
-    -- Функция создания Box ESP
+    -- Создание рамки вокруг конкретного парта
     local function CreateBox(object)
-        if not object:IsA("BasePart") then return end
         local box = Instance.new("SelectionBox")
-        box.Name = "OreHighlight"
+        box.Name = "Partner_ESP_Box"
         box.Adornee = object
-        box.Color3 = Color3.fromRGB(0, 255, 255) -- Бирюзовый цвет для видимости
+        box.Color3 = Color3.fromRGB(0, 255, 255) -- Бирюзовый цвет
         box.LineThickness = 0.05
-        box.Parent = Context.CoreGui 
+        box.Parent = Context.CoreGui -- Рисуем поверх всего интерфейса
         table.insert(ActiveBoxESP, box)
     end
 
-    -- Функция обновления визуалов
+    -- Обновление всей подсветки на экране
     local function UpdateVisuals()
         ClearESP()
         if not Config.VisualsEnabled then return end
 
         for _, item in pairs(Config.OresFolder:GetDescendants()) do
+            -- Если имя объекта есть в списке выбранных в меню
             if table.find(Config.SelectedOres, item.Name) and item:IsA("BasePart") then
                 CreateBox(item)
             end
         end
     end
 
-    -- ИНТЕРФЕЙС
-    Tab:CreateSection("Сканирование")
+    -- ==========================================
+    -- СОЗДАНИЕ ИНТЕРФЕЙСА (RAYFIELD)
+    -- ==========================================
+
+    Tab:CreateSection("Поиск ресурсов")
 
     Tab:CreateButton({
-        Name = "Сканировать карту на руды",
+        Name = "🔍 Найти все руды на карте",
         Callback = function()
-            ScanOres()
+            ScanForOres()
         end,
     })
 
     Tab:CreateSection("Настройки Авто-Фарма")
 
-    -- Сохраняем Dropdown в переменную, чтобы менять его опции позже
+    -- Выпадающее меню с множественным выбором
     OreDropdown = Tab:CreateDropdown({
-        Name = "Выбор руд",
+        Name = "Выберите руды для работы",
         Options = OreTypes,
         CurrentOption = {},
-        MultipleOptions = true,
+        MultipleOptions = true, -- Разрешаем выбирать несколько
         Flag = "OreSelector",
         Callback = function(Options)
             Config.SelectedOres = Options
-            UpdateVisuals()
+            UpdateVisuals() -- Перерисовываем рамки при каждом изменении выбора
         end,
     })
 
@@ -108,7 +119,7 @@ return function(Tab, Context)
     })
 
     Tab:CreateToggle({
-        Name = "Авто-Фарм выбранного",
+        Name = "Включить Авто-Фарм",
         CurrentValue = false,
         Flag = "AutoFarmToggle",
         Callback = function(Value)
@@ -116,7 +127,7 @@ return function(Tab, Context)
             if Value then
                 task.spawn(function()
                     while Config.AutoMine do
-                        -- Логика поиска и копания (как в прошлом примере)
+                        -- Тут твоя логика перемещения к ближайшей руде из Config.SelectedOres
                         task.wait(0.5)
                     end
                 end)
@@ -124,6 +135,6 @@ return function(Tab, Context)
         end,
     })
 
-    -- Опционально: запускаем сканирование один раз при загрузке
-    task.spawn(ScanOres)
+    -- Автоматический запуск поиска при загрузке скрипта
+    task.spawn(ScanForOres)
 end
