@@ -1,91 +1,119 @@
 return function(Tab, Context)
-	-- Настройки, которые нужно адаптировать под конкретный режим
-	local Config = {
-		AutoMine = false,
-		SelectedOre = "Tin",
-		OresFolder = workspace, -- УКАЖИ ПАПКУ С РУДАМИ: например, workspace.Ores
-		ToolName = "Pickaxe",   -- УКАЖИ НАЗВАНИЕ ИНСТРУМЕНТА (или оставь пустым для авто-выбора)
-		DistanceToMine = 5      -- Дистанция, с которой игра разрешает добывать
-	}
+    -- Настройки
+    local Config = {
+        AutoMine = false,
+        VisualsEnabled = false,
+        SelectedOres = {}, -- Теперь здесь таблица для нескольких руд
+        OresFolder = workspace, -- Укажи папку, например workspace.Ores
+        ToolName = "Pickaxe",
+        DistanceToMine = 5
+    }
 
-	-- Список доступных руд (названия партов/моделей в игре)
-	local OreTypes = {"Tin", "Iron", "Copper", "Gold", "Diamond"} 
+    local OreTypes = {"Tin", "Iron", "Copper", "Gold", "Diamond"}
+    local ActiveBoxESP = {} -- Хранилище для созданных рамок
 
-	Tab:CreateSection("Настройки Авто-Фарма")
+    -- Функция для очистки всей подсветки
+    local function ClearESP()
+        for _, box in pairs(ActiveBoxESP) do
+            box:Destroy()
+        end
+        ActiveBoxESP = {}
+    end
 
-	Tab:CreateDropdown({
-		Name = "Выбор руды",
-		Options = OreTypes,
-		CurrentOption = {"Tin"},
-		MultipleOptions = false,
-		Flag = "OreSelector",
-		Callback = function(Option)
-			Config.SelectedOre = Option[1]
-		end,
-	})
+    -- Функция для создания рамки (Box ESP)
+    local function CreateBox(object)
+        if not object:IsA("BasePart") then return end
+        
+        local box = Instance.new("SelectionBox")
+        box.Name = "OreHighlight"
+        box.Adornee = object
+        box.Color3 = Color3.fromRGB(255, 255, 255) -- Белый цвет по умолчанию
+        box.LineThickness = 0.05
+        box.Parent = Context.CoreGui -- Помещаем в CoreGui, чтобы игрок видел сквозь стены
+        
+        table.insert(ActiveBoxESP, box)
+    end
 
-	Tab:CreateToggle({
-		Name = "Включить Авто-Фарм",
-		CurrentValue = false,
-		Flag = "AutoFarmToggle",
-		Callback = function(Value)
-			Config.AutoMine = Value
-			
-			if Value then
-				-- Запускаем цикл фарма в отдельном потоке
-				task.spawn(function()
-					while Config.AutoMine do
-						local player = Context.Player
-						local character = player.Character or player.CharacterAdded:Wait()
-						local rootPart = character:WaitForChild("HumanoidRootPart")
-						local humanoid = character:WaitForChild("Humanoid")
+    -- Функция обновления визуалов
+    local function UpdateVisuals()
+        ClearESP()
+        if not Config.VisualsEnabled then return end
 
-						-- 1. Ищем ближайшую руду
-						local closestOre = nil
-						local shortestDistance = math.huge
+        for _, item in pairs(Config.OresFolder:GetDescendants()) do
+            -- Проверяем, входит ли название руды в наш список выбранных
+            if table.find(Config.SelectedOres, item.Name) and item:IsA("BasePart") then
+                CreateBox(item)
+            end
+        end
+    end
 
-						-- Перебираем объекты в папке с рудами
-						for _, item in pairs(Config.OresFolder:GetDescendants()) do
-							if item.Name == Config.SelectedOre and item:IsA("BasePart") then
-								local distance = (rootPart.Position - item.Position).Magnitude
-								if distance < shortestDistance then
-									closestOre = item
-									shortestDistance = distance
-								end
-							end
-						end
+    -- Интерфейс
+    Tab:CreateSection("Настройки Авто-Фарма")
 
-						-- 2. Если руда найдена, действуем
-						if closestOre then
-							-- Телепортация к руде (чуть выше и сбоку, чтобы не застрять)
-							rootPart.CFrame = closestOre.CFrame * CFrame.new(0, Config.DistanceToMine, Config.DistanceToMine)
+    Tab:CreateDropdown({
+        Name = "Выбор руд (Множественный)",
+        Options = OreTypes,
+        CurrentOption = {},
+        MultipleOptions = true, -- ВКЛЮЧАЕМ МНОЖЕСТВЕННЫЙ ВЫБОР
+        Flag = "OreSelector",
+        Callback = function(Options)
+            Config.SelectedOres = Options
+            UpdateVisuals() -- Обновляем рамки при смене выбора
+        end,
+    })
 
-							-- 3. Экипировка инструмента
-							local tool = player.Backpack:FindFirstChild(Config.ToolName)
-							if tool then
-								humanoid:EquipTool(tool)
-							end
-							
-							-- Берем экипированный инструмент
-							local equippedTool = character:FindFirstChildOfClass("Tool")
+    Tab:CreateToggle({
+        Name = "Подсветка выбранных руд (Box)",
+        CurrentValue = false,
+        Flag = "EspToggle",
+        Callback = function(Value)
+            Config.VisualsEnabled = Value
+            UpdateVisuals()
+        end,
+    })
 
-							-- 4. Имитация добычи
-							if equippedTool then
-								equippedTool:Activate() -- Имитация клика мышкой
-							end
+    Tab:CreateToggle({
+        Name = "Включить Авто-Фарм",
+        CurrentValue = false,
+        Flag = "AutoFarmToggle",
+        Callback = function(Value)
+            Config.AutoMine = Value
+            
+            if Value then
+                task.spawn(function()
+                    while Config.AutoMine do
+                        local player = Context.Player
+                        local character = player.Character or player.CharacterAdded:Wait()
+                        local rootPart = character:WaitForChild("HumanoidRootPart")
+                        
+                        local closestOre = nil
+                        local shortestDistance = math.huge
 
-							-- Если в игре используются ProximityPrompt (E для взаимодействия)
-							local prompt = closestOre:FindFirstChildOfClass("ProximityPrompt")
-							if prompt then
-								fireproximityprompt(prompt, 1, true)
-							end
-						end
+                        -- Поиск ближайшей из ВЫБРАННЫХ руд
+                        for _, item in pairs(Config.OresFolder:GetDescendants()) do
+                            if table.find(Config.SelectedOres, item.Name) and item:IsA("BasePart") then
+                                local distance = (rootPart.Position - item.Position).Magnitude
+                                if distance < shortestDistance then
+                                    closestOre = item
+                                    shortestDistance = distance
+                                end
+                            end
+                        end
 
-						-- Пауза, чтобы не повесить игру (настрой под скорость добычи в игре)
-						task.wait(0.2)
-					end
-				end)
-			end
-		end,
-	})
+                        if closestOre then
+                            -- Логика телепортации и копания
+                            rootPart.CFrame = closestOre.CFrame * CFrame.new(0, Config.DistanceToMine, 0)
+                            
+                            local tool = player.Backpack:FindFirstChild(Config.ToolName) or character:FindFirstChild(Config.ToolName)
+                            if tool then 
+                                character.Humanoid:EquipTool(tool)
+                                tool:Activate()
+                            end
+                        end
+                        task.wait(0.3)
+                    end
+                end)
+            end
+        end,
+    })
 end
