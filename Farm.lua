@@ -1,18 +1,14 @@
 return function(Tab, Context)
-    -- Подключаем сервис для работы с форматом JSON (чтобы сохранять таблицы в текст)
     local HttpService = game:GetService("HttpService")
-    
-    -- Название файла, который появится в папке твоего экзекутора (обычно папка workspace)
     local FileName = "SavedOresList.json"
 
-    -- ==========================================
-    -- КОНФИГУРАЦИЯ И ПЕРЕМЕННЫЕ
-    -- ==========================================
     local Config = {
         AutoMine = false,
         VisualsEnabled = false,
         SelectedOres = {}, 
-        OresFolder = workspace, 
+        OresFolderStr = "workspace",
+        NameFilter = "",
+        OnlyInteractable = false,
         ToolName = "Pickaxe",
         DistanceToMine = 5
     }
@@ -21,75 +17,44 @@ return function(Tab, Context)
     local ActiveBoxESP = {} 
     local OreDropdown 
 
-    -- ==========================================
-    -- ФУНКЦИИ РАБОТЫ С ФАЙЛАМИ
-    -- ==========================================
-
-    -- Функция сохранения списка в файл
     local function SaveOresToFile()
-        -- Защищаем код от ошибок с помощью pcall
         local success, errorMsg = pcall(function()
-            -- Превращаем таблицу Lua в удобный текстовый формат JSON
             local jsonData = HttpService:JSONEncode(OreTypes)
-            -- Записываем текст в файл (функция экзекутора)
             writefile(FileName, jsonData)
         end)
-
         if success then
-            print("[Partner Log]: Список руд успешно сохранен в файл: " .. FileName)
+            print("[Partner Log]: Список руд сохранен: " .. FileName)
         else
-            warn("[Partner Log]: Ошибка при сохранении файла: " .. tostring(errorMsg))
+            warn("[Partner Log]: Ошибка сохранения: " .. tostring(errorMsg))
         end
     end
 
-    -- Функция загрузки списка из файла
     local function LoadOresFromFile()
-        -- Проверяем, существует ли функция isfile и сам файл
-        if isfile and isfile(FileName) then
+        if type(isfile) == "function" and isfile(FileName) then
             local success, result = pcall(function()
-                -- Читаем текст из файла
-                local fileData = readfile(FileName)
-                -- Превращаем текст обратно в таблицу Lua
-                return HttpService:JSONDecode(fileData)
+                return HttpService:JSONDecode(readfile(FileName))
             end)
-
             if success and type(result) == "table" then
                 OreTypes = result
-                print("[Partner Log]: Список руд успешно загружен из файла.")
-                
-                -- Обновляем меню, если оно уже создано
-                if OreDropdown then
-                    OreDropdown:Refresh(OreTypes, false)
-                end
-            else
-                warn("[Partner Log]: Файл найден, но прочитать его не удалось.")
+                print("[Partner Log]: Список руд загружен.")
+                if OreDropdown then OreDropdown:Refresh(OreTypes, false) end
             end
-        else
-            print("[Partner Log]: Файл с рудами не найден. Требуется сканирование.")
         end
     end
-
-    -- ==========================================
-    -- ФУНКЦИИ ЛОГИКИ (ESP И СКАНЕР)
-    -- ==========================================
 
     local function ClearESP()
         for _, box in pairs(ActiveBoxESP) do
             if box then box:Destroy() end
         end
-        ActiveBoxESP = {}
+        table.clear(ActiveBoxESP)
     end
 
-    -- ==========================================
-    -- ЧЕРНЫЙ СПИСОК (Игнорируем технические детали)
-    -- ==========================================
     local Blacklist = {
         "Hitbox", "Centre", "Block", "PlacedOre", "OreIngredientMesh",
         "CasingCentre", "CubicBlockMetal", "ShaleMetalBlock", "GemBlockMesh",
         "OreBlockPolished", "CrystallineMetalOre", "CrystallineOre"
     }
 
-    -- Функция для проверки, есть ли имя в черном списке
     local function IsBlacklisted(name)
         for _, badName in pairs(Blacklist) do
             if name == badName then return true end
@@ -97,94 +62,122 @@ return function(Tab, Context)
         return false
     end
 
-    -- ==========================================
-    -- ОБНОВЛЕННОЕ УМНОЕ СКАНИРОВАНИЕ
-    -- ==========================================
+    local function ResolveFolder(pathStr)
+        if pathStr == "" or string.lower(pathStr) == "workspace" then return workspace end
+        local parts = string.split(pathStr, ".")
+        local current = game
+        for _, p in ipairs(parts) do
+            if current:FindFirstChild(p) then
+                current = current[p]
+            else
+                return nil
+            end
+        end
+        return current
+    end
+
     local function ScanForOres()
-        print("------------------------------------------")
-        print("[Partner Log]: Начало сканирования с учетом Моделей и Черного списка...")
+        print("[Partner Log]: Сканирование...")
+        local folder = ResolveFolder(Config.OresFolderStr)
+        if not folder then
+            warn("[Partner Log]: Папка " .. Config.OresFolderStr .. " не найдена!")
+            return
+        end
         
         local foundNames = {} 
         local newOptions = {} 
+        local desc = folder:GetDescendants()
         
-        for _, item in pairs(Config.OresFolder:GetDescendants()) do
-            -- ТЕПЕРЬ МЫ ИЩЕМ И МОДЕЛИ (Model), И ДЕТАЛИ (BasePart)
-            if item:IsA("Model") or item:IsA("BasePart") then
-                local name = item.Name
-                local lowerName = string.lower(name)
-                
-                -- Проверяем, есть ли в названии слова "ore" (руда) или "gemstone" (самоцвет)
-                if string.find(lowerName, "ore") or string.find(lowerName, "gemstone") then
+        task.spawn(function()
+            for i, item in ipairs(desc) do
+                if i % 150 == 0 then task.wait() end 
+
+                if item:IsA("Model") or item:IsA("BasePart") then
+                    local name = item.Name
+                    local lowerName = string.lower(name)
                     
-                    -- Если имя НЕ в черном списке и мы его еще не записывали
+                    if Config.OnlyInteractable then
+                        local hasPrompt = item:FindFirstChildWhichIsA("ProximityPrompt") or item:FindFirstChildWhichIsA("ClickDetector")
+                        if not hasPrompt then continue end
+                    end
+
+                    if Config.NameFilter ~= "" and not string.find(lowerName, string.lower(Config.NameFilter)) then
+                        continue
+                    end
+                    
                     if not IsBlacklisted(name) and not foundNames[name] then
                         foundNames[name] = true
                         table.insert(newOptions, name)
-                        print("[Partner Log]: Чистая руда добавлена в список: " .. name)
                     end
                 end
             end
-        end
 
-        OreTypes = newOptions
-        
-        if OreDropdown then
-            OreDropdown:Refresh(OreTypes, false)
-            print("[Partner Log]: Меню обновлено. Доступно руд: " .. #OreTypes)
-        end
-
-        if #OreTypes > 0 then
-            SaveOresToFile()
-        end
+            OreTypes = newOptions
+            if OreDropdown then
+                OreDropdown:Refresh(OreTypes, false)
+            end
+            if #OreTypes > 0 then SaveOresToFile() end
+            print("[Partner Log]: Найдено типов: " .. #OreTypes)
+        end)
     end
 
-    -- ==========================================
-    -- ОБНОВЛЕННЫЕ ВИЗУАЛЫ (ESP ДЛЯ МОДЕЛЕЙ)
-    -- ==========================================
     local function UpdateVisuals()
         ClearESP()
         if not Config.VisualsEnabled then return end
 
-        for _, item in pairs(Config.OresFolder:GetDescendants()) do
-            -- Проверяем, есть ли имя объекта в выбранных нами в меню
-            if table.find(Config.SelectedOres, item.Name) then
-                
-                -- Если это Модель или Деталь - вешаем на неё рамку
-                if item:IsA("Model") or item:IsA("BasePart") then
-                    local box = Instance.new("SelectionBox")
-                    box.Name = "Partner_ESP_Box"
-                    box.Adornee = item
-                    box.Color3 = Color3.fromRGB(0, 255, 255)
-                    box.LineThickness = 0.05
-                    box.Parent = Context.CoreGui
-                    table.insert(ActiveBoxESP, box)
+        local folder = ResolveFolder(Config.OresFolderStr)
+        if not folder then return end
+
+        task.spawn(function()
+            for i, item in ipairs(folder:GetDescendants()) do
+                if i % 250 == 0 then task.wait() end 
+                if table.find(Config.SelectedOres, item.Name) then
+                    if item:IsA("Model") or item:IsA("BasePart") then
+                        local box = Instance.new("SelectionBox")
+                        box.Name = "Partner_ESP_Box"
+                        box.Adornee = item
+                        box.Color3 = Color3.fromRGB(0, 255, 255)
+                        box.LineThickness = 0.05
+                        box.Parent = Context.CoreGui
+                        table.insert(ActiveBoxESP, box)
+                    end
                 end
-                
             end
-        end
+        end)
     end
 
-    -- ==========================================
-    -- СОЗДАНИЕ ИНТЕРФЕЙСА
-    -- ==========================================
+    Tab:CreateSection("Настройки Поиска")
 
-    Tab:CreateSection("Поиск и Сохранение")
-
-    Tab:CreateButton({
-        Name = "🔍 Сканировать руды (и сохранить)",
-        Callback = ScanForOres
+    Tab:CreateInput({
+        Name = "Путь к папке объектов",
+        PlaceholderText = "например: workspace.Map.Ores",
+        RemoveTextAfterFocusLost = false,
+        Callback = function(Text) Config.OresFolderStr = Text end,
     })
 
-    -- Кнопка для ручной загрузки, если нужно
+    Tab:CreateInput({
+        Name = "Фильтр текста (опционально)",
+        PlaceholderText = "Введите фрагмент имени",
+        RemoveTextAfterFocusLost = false,
+        Callback = function(Text) Config.NameFilter = Text end,
+    })
+
+    Tab:CreateToggle({
+        Name = "Искать только интерактивные",
+        CurrentValue = false,
+        Flag = "OnlyInteractable",
+        Callback = function(Value) Config.OnlyInteractable = Value end,
+    })
+
     Tab:CreateButton({
-        Name = "📂 Загрузить список из файла",
-        Callback = LoadOresFromFile
+        Name = "🔍 Сканировать и Сохранить",
+        Callback = ScanForOres
     })
 
     Tab:CreateSection("Настройки Авто-Фарма")
 
     OreDropdown = Tab:CreateDropdown({
-        Name = "Выберите руды",
+        Name = "Выберите объекты",
         Options = OreTypes,
         CurrentOption = {},
         MultipleOptions = true,
@@ -205,6 +198,5 @@ return function(Tab, Context)
         end,
     })
 
-    -- Пытаемся загрузить сохраненный файл при старте
     LoadOresFromFile()
 end

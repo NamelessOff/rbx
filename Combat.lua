@@ -7,6 +7,8 @@ return function(Tab, Context)
 	local flingEnabled = false
 	local autoclickerRunning = true
 	local CAMLOCK_MAX_DISTANCE = 150
+	local legitModeEnabled = false
+	local camlockSmoothness = 5
 
 	-- ===================================
 	Tab:CreateSection("🎯 Помощь в стрельбе")
@@ -29,6 +31,23 @@ return function(Tab, Context)
 		HoldToInteract = false,
 		Flag = "CamlockBind",
 		Callback = function() CamlockToggle:Set(not camlockEnabled) end,
+	})
+
+	Tab:CreateToggle({
+		Name = "Legit Mode (Сглаживание + Без стен)",
+		CurrentValue = false,
+		Flag = "LegitMode",
+		Callback = function(Value) legitModeEnabled = Value end,
+	})
+
+	Tab:CreateSlider({
+		Name = "Скорость наводки (Legit Mode)",
+		Range = {1, 10},
+		Increment = 1,
+		Suffix = " ед.",
+		CurrentValue = 5,
+		Flag = "Smoothness",
+		Callback = function(Value) camlockSmoothness = Value end,
 	})
 
 	-- ===================================
@@ -131,8 +150,20 @@ return function(Tab, Context)
 				if onScreen then
 					local dist = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
 					if dist < closestDist then
-						closestDist = dist
-						target = p.Character.Head
+						local isVisible = true
+						if legitModeEnabled then
+							local rayInfo = RaycastParams.new()
+							rayInfo.FilterDescendantsInstances = {player.Character, p.Character}
+							rayInfo.FilterType = Enum.RaycastFilterType.Exclude
+							local rayDir = p.Character.Head.Position - Context.Camera.CFrame.Position
+							local result = workspace:Raycast(Context.Camera.CFrame.Position, rayDir, rayInfo)
+							if result then isVisible = false end
+						end
+
+						if isVisible then
+							closestDist = dist
+							target = p.Character.Head
+						end
 					end
 				end
 			end
@@ -154,9 +185,16 @@ return function(Tab, Context)
 		end
 	end))
 
-	table.insert(Context.Connections, Context.RunService.RenderStepped:Connect(function()
+	table.insert(Context.Connections, Context.RunService.RenderStepped:Connect(function(deltaTime)
 		if isAiming and camlockEnabled and camlockTarget and camlockTarget.Parent then
-			Context.Camera.CFrame = CFrame.new(Context.Camera.CFrame.Position, camlockTarget.Position)
+			local currentCFrame = Context.Camera.CFrame
+			local targetCFrame = CFrame.new(currentCFrame.Position, camlockTarget.Position)
+			if legitModeEnabled then
+				local alpha = math.clamp((camlockSmoothness / 10) * deltaTime * 20, 0.01, 1)
+				Context.Camera.CFrame = currentCFrame:Lerp(targetCFrame, alpha)
+			else
+				Context.Camera.CFrame = targetCFrame
+			end
 		else
 			if isAiming and not (camlockTarget and camlockTarget.Parent) then
 				camlockTarget = nil

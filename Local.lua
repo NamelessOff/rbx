@@ -221,7 +221,7 @@ return function(Tab, Context)
 		end
 
 		if noclipEnabled then
-			for _, part in pairs(char:GetDescendants()) do
+			for _, part in pairs(char:GetChildren()) do
 				if part:IsA("BasePart") and part.CanCollide then
 					part.CanCollide = false
 				end
